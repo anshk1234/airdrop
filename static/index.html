@@ -74,6 +74,7 @@
       <section class="drop-section">
         <div id="drop-zone" class="drop-zone">
           <input type="file" id="file-input" multiple class="hidden-input" />
+          <input type="file" id="folder-input" webkitdirectory directory multiple class="hidden-input" />
           <div class="drop-icon-wrapper">
             <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -81,10 +82,10 @@
               <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
           </div>
-          <h2 class="drop-title">Drag & Drop files here</h2>
-          <p class="drop-subtitle">or <span class="browse-link">browse files</span> from your device</p>
+          <h2 class="drop-title">Drag & Drop files or folders here</h2>
+          <p class="drop-subtitle">or <span class="browse-link" id="browse-files-btn">browse files</span> / <span class="browse-link" id="browse-folder-btn">browse folder</span></p>
           <div class="supported-tags">
-            <span>Any file size</span> • <span>Multi-file upload</span> • <span>Direct P2P speed</span>
+            <span>Folders supported</span> • <span>Multi-file upload</span> • <span>Direct P2P speed</span>
           </div>
         </div>
 

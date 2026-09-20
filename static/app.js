@@ -5,6 +5,9 @@ let filesData = [];
 // DOM Elements
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
+const folderInput = document.getElementById('folder-input');
+const browseFilesBtn = document.getElementById('browse-files-btn');
+const browseFolderBtn = document.getElementById('browse-folder-btn');
 const uploadQueue = document.getElementById('upload-queue');
 const queueList = document.getElementById('queue-list');
 const filesList = document.getElementById('files-list');
@@ -39,9 +42,30 @@ function setupEventListeners() {
   // Theme Toggle
   themeBtn.addEventListener('click', toggleTheme);
 
+  // Browse links
+  if (browseFilesBtn) {
+    browseFilesBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fileInput.click();
+    });
+  }
+  if (browseFolderBtn) {
+    browseFolderBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      folderInput.click();
+    });
+  }
+
   // Drop Zone Clicks & Drags
-  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('click', (e) => {
+    if (e.target !== browseFilesBtn && e.target !== browseFolderBtn) {
+      fileInput.click();
+    }
+  });
   fileInput.addEventListener('change', handleFileSelection);
+  if (folderInput) {
+    folderInput.addEventListener('change', handleFolderSelection);
+  }
 
   ['dragenter', 'dragover'].forEach(eventName => {
     dropZone.addEventListener(eventName, (e) => {
@@ -59,7 +83,31 @@ function setupEventListeners() {
     });
   });
 
-  dropZone.addEventListener('drop', (e) => {
+  dropZone.addEventListener('drop', async (e) => {
+    const items = e.dataTransfer.items;
+    if (items && items.length > 0) {
+      const entriesToProcess = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.webkitGetAsEntry) {
+          const entry = item.webkitGetAsEntry();
+          if (entry) entriesToProcess.push(entry);
+        }
+      }
+
+      if (entriesToProcess.length > 0) {
+        showToast('Scanning files and folders...');
+        const allItems = [];
+        for (const entry of entriesToProcess) {
+          await traverseEntry(entry, '', allItems);
+        }
+        if (allItems.length > 0) {
+          uploadItemList(allItems);
+          return;
+        }
+      }
+    }
+
     const dt = e.dataTransfer;
     if (dt && dt.files && dt.files.length > 0) {
       uploadFiles(dt.files);
@@ -177,13 +225,40 @@ function renderFiles(files) {
       <div class="empty-state">
         <div class="empty-icon">📂</div>
         <h3>No files found</h3>
-        <p>Drop files into the zone above to share with any connected device.</p>
+        <p>Drop files or folders into the zone above to share with any connected device.</p>
       </div>
     `;
     return;
   }
 
   filesList.innerHTML = files.map(file => {
+    if (file.type === 'folder') {
+      return `
+        <div class="file-card folder-card">
+          <div class="file-info-group">
+            <div class="file-type-icon">📁</div>
+            <div class="file-meta">
+              <div class="file-name" title="${escapeHtml(file.name)}">
+                ${escapeHtml(file.name)}
+                <span class="badge folder-badge">${file.file_count} files</span>
+              </div>
+              <div class="file-details">
+                <span>${file.formatted_size}</span> • <span>${file.modified}</span>
+              </div>
+            </div>
+          </div>
+          <div class="file-actions">
+            <a href="/download-zip/${encodeURIComponent(file.name)}" class="btn-action download" title="Download entire folder as ZIP">
+              📦 Download ZIP
+            </a>
+            <button onclick="deleteFile('${encodeURIComponent(file.name)}')" class="btn-action delete" title="Delete folder">
+              🗑️
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
     const icon = getFileIcon(file.name, file.mime);
     return `
       <div class="file-card">
@@ -219,22 +294,73 @@ function renderFiles(files) {
 function handleFileSelection(e) {
   if (e.target.files && e.target.files.length > 0) {
     uploadFiles(e.target.files);
-    fileInput.value = ''; // Reset
+    fileInput.value = '';
   }
 }
 
+function handleFolderSelection(e) {
+  if (e.target.files && e.target.files.length > 0) {
+    const items = Array.from(e.target.files).map(file => ({
+      file,
+      relPath: file.webkitRelativePath || file.name
+    }));
+    uploadItemList(items);
+    folderInput.value = '';
+  }
+}
+
+// Recursive directory entries traversal
+async function traverseEntry(entry, currentPath, fileList) {
+  if (entry.isFile) {
+    const file = await new Promise((resolve) => entry.file(resolve));
+    fileList.push({
+      file,
+      relPath: currentPath ? `${currentPath}/${file.name}` : file.name
+    });
+  } else if (entry.isDirectory) {
+    const dirReader = entry.createReader();
+    const newPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+    const entries = await readAllDirectoryEntries(dirReader);
+    for (const child of entries) {
+      await traverseEntry(child, newPath, fileList);
+    }
+  }
+}
+
+async function readAllDirectoryEntries(dirReader) {
+  const entries = [];
+  const readBatch = () => new Promise((resolve) => dirReader.readEntries(resolve));
+  let batch = await readBatch();
+  while (batch && batch.length > 0) {
+    entries.push(...batch);
+    batch = await readBatch();
+  }
+  return entries;
+}
+
 function uploadFiles(fileList) {
+  const items = Array.from(fileList).map(file => ({
+    file,
+    relPath: file.name
+  }));
+  uploadItemList(items);
+}
+
+function uploadItemList(items) {
   uploadQueue.classList.remove('hidden');
 
-  Array.from(fileList).forEach(file => {
+  items.forEach(item => {
+    const file = item.file;
+    const relPath = item.relPath;
     const queueId = 'queue-' + Math.random().toString(36).substr(2, 9);
-    addQueueItem(queueId, file.name);
+    addQueueItem(queueId, relPath);
 
     const xhr = new XMLHttpRequest();
-    const url = `/api/upload?filename=${encodeURIComponent(file.name)}`;
+    const url = `/api/upload?filename=${encodeURIComponent(file.name)}&relpath=${encodeURIComponent(relPath)}`;
 
     xhr.open('POST', url, true);
     xhr.setRequestHeader('X-File-Name', encodeURIComponent(file.name));
+    xhr.setRequestHeader('X-Relative-Path', encodeURIComponent(relPath));
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
@@ -246,17 +372,17 @@ function uploadFiles(fileList) {
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         removeQueueItem(queueId);
-        showToast(`Uploaded: ${file.name}`);
+        showToast(`Uploaded: ${relPath}`);
         loadFiles();
       } else {
         markQueueError(queueId, 'Upload failed');
-        showToast(`Failed to upload ${file.name}`);
+        showToast(`Failed to upload ${relPath}`);
       }
     };
 
     xhr.onerror = () => {
       markQueueError(queueId, 'Network error');
-      showToast(`Error uploading ${file.name}`);
+      showToast(`Error uploading ${relPath}`);
     };
 
     xhr.send(file);

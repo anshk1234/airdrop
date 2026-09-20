@@ -5,6 +5,9 @@ import socket
 import urllib.parse
 import mimetypes
 import webbrowser
+import shutil
+import zipfile
+import tempfile
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from datetime import datetime
@@ -94,21 +97,42 @@ class FileDropHandler(BaseHTTPRequestHandler):
             })
         elif path == "/api/files":
             files = []
-            for fname in os.listdir(UPLOADS_DIR):
+            for item_name in os.listdir(UPLOADS_DIR):
                 # Ignore hidden files (.gitkeep, .DS_Store), temp files, and system files
-                if fname.startswith('.') or fname.startswith('~$') or fname.lower() in ('thumbs.db', 'desktop.ini') or fname.endswith('.tmp'):
+                if item_name.startswith('.') or item_name.startswith('~$') or item_name.lower() in ('thumbs.db', 'desktop.ini') or item_name.endswith('.tmp'):
                     continue
 
-                fpath = os.path.join(UPLOADS_DIR, fname)
-                if os.path.isfile(fpath):
-                    stat = os.stat(fpath)
-                    mime, _ = mimetypes.guess_type(fname)
+                item_path = os.path.join(UPLOADS_DIR, item_name)
+                if os.path.isfile(item_path):
+                    stat = os.stat(item_path)
+                    mime, _ = mimetypes.guess_type(item_name)
                     files.append({
-                        "name": fname,
+                        "name": item_name,
+                        "type": "file",
                         "size": stat.st_size,
                         "formatted_size": format_size(stat.st_size),
                         "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
                         "mime": mime or "application/octet-stream"
+                    })
+                elif os.path.isdir(item_path):
+                    total_size = 0
+                    file_count = 0
+                    for root, dirs, fnames in os.walk(item_path):
+                        for f in fnames:
+                            if not f.startswith('.'):
+                                fp = os.path.join(root, f)
+                                if os.path.isfile(fp):
+                                    total_size += os.path.getsize(fp)
+                                    file_count += 1
+                    stat = os.stat(item_path)
+                    files.append({
+                        "name": item_name,
+                        "type": "folder",
+                        "size": total_size,
+                        "file_count": file_count,
+                        "formatted_size": format_size(total_size),
+                        "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+                        "mime": "application/zip"
                     })
             files.sort(key=lambda x: x["modified"], reverse=True)
             self.send_json({"files": files})
@@ -129,6 +153,39 @@ class FileDropHandler(BaseHTTPRequestHandler):
                         self.wfile.write(chunk)
             else:
                 self.send_error(404, "File Not Found")
+        elif path.startswith("/download-zip/"):
+            folder_name = os.path.basename(urllib.parse.unquote(path[len("/download-zip/"):]))
+            safe_path = os.path.abspath(os.path.join(UPLOADS_DIR, folder_name))
+            if os.path.commonpath([safe_path, UPLOADS_DIR]) == UPLOADS_DIR and os.path.isdir(safe_path):
+                # Bundle the directory into a temporary zip archive
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
+                    tmp_name = tmp.name
+                    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
+                        for root, dirs, fnames in os.walk(safe_path):
+                            for f in fnames:
+                                if not f.startswith('.'):
+                                    fp = os.path.join(root, f)
+                                    rel = os.path.relpath(fp, safe_path)
+                                    zf.write(fp, arcname=rel)
+
+                file_size = os.path.getsize(tmp_name)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/zip")
+                self.send_header("Content-Length", str(file_size))
+                self.send_header("Content-Disposition", f'attachment; filename="{folder_name}.zip"')
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                try:
+                    with open(tmp_name, "rb") as f:
+                        while chunk := f.read(64 * 1024):
+                            self.wfile.write(chunk)
+                finally:
+                    try:
+                        os.remove(tmp_name)
+                    except Exception:
+                        pass
+            else:
+                self.send_error(404, "Folder Not Found")
         elif path.startswith("/view/"):
             filename = os.path.basename(urllib.parse.unquote(path[len("/view/"):]))
             safe_path = os.path.abspath(os.path.join(UPLOADS_DIR, filename))
@@ -156,30 +213,56 @@ class FileDropHandler(BaseHTTPRequestHandler):
         if path == "/api/upload":
             query = urllib.parse.parse_qs(parsed.query)
             filename = None
+            relpath = None
 
-            # Get filename from query param or header
             if "filename" in query:
                 filename = query["filename"][0]
             elif "X-File-Name" in self.headers:
                 filename = urllib.parse.unquote(self.headers["X-File-Name"])
 
+            if "relpath" in query:
+                relpath = query["relpath"][0]
+            elif "X-Relative-Path" in self.headers:
+                relpath = urllib.parse.unquote(self.headers["X-Relative-Path"])
+
+            if not filename and relpath:
+                filename = os.path.basename(relpath)
+
             if not filename:
                 filename = f"upload_{int(datetime.now().timestamp())}.bin"
 
-            # Clean filename to avoid path traversal and hide/system files
+            # Clean filename and relative path to avoid path traversal
             filename = os.path.basename(filename).replace("/", "_").replace("\\", "_")
             if filename.startswith('.'):
                 filename = filename.lstrip('.')
             if not filename:
                 filename = f"upload_{int(datetime.now().timestamp())}.bin"
-            target_path = os.path.join(UPLOADS_DIR, filename)
 
-            # Avoid accidental overwrites by appending suffix if already exists
-            base_name, ext = os.path.splitext(filename)
-            counter = 1
-            while os.path.exists(target_path):
-                target_path = os.path.join(UPLOADS_DIR, f"{base_name}_{counter}{ext}")
-                counter += 1
+            if relpath:
+                # Sanitize relative directory path components
+                raw_parts = [p for p in relpath.replace("\\", "/").split("/") if p and p != "." and p != ".."]
+                parts = [p.lstrip('.') for p in raw_parts if not p.startswith('.')]
+                if parts:
+                    target_path = os.path.abspath(os.path.join(UPLOADS_DIR, *parts))
+                else:
+                    target_path = os.path.join(UPLOADS_DIR, filename)
+            else:
+                target_path = os.path.join(UPLOADS_DIR, filename)
+
+            # Security check: target_path must strictly reside within UPLOADS_DIR
+            if os.path.commonpath([target_path, UPLOADS_DIR]) != UPLOADS_DIR:
+                self.send_error(403, "Invalid path")
+                return
+
+            # Avoid accidental overwrites for root files if already exists (for folders, preserve structure)
+            if not relpath and os.path.exists(target_path):
+                base_name, ext = os.path.splitext(filename)
+                counter = 1
+                while os.path.exists(target_path):
+                    target_path = os.path.join(UPLOADS_DIR, f"{base_name}_{counter}{ext}")
+                    counter += 1
+
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
 
             try:
                 content_length = int(self.headers.get("Content-Length", 0))
@@ -198,7 +281,7 @@ class FileDropHandler(BaseHTTPRequestHandler):
                         f.write(chunk)
                         bytes_read += len(chunk)
 
-                final_name = os.path.basename(target_path)
+                final_name = os.path.relpath(target_path, UPLOADS_DIR)
                 self.send_json({
                     "success": True,
                     "filename": final_name,
@@ -226,14 +309,17 @@ class FileDropHandler(BaseHTTPRequestHandler):
                 self.send_error(403, "Cannot delete system files")
                 return
             safe_path = os.path.abspath(os.path.join(UPLOADS_DIR, filename))
-            if os.path.commonpath([safe_path, UPLOADS_DIR]) == UPLOADS_DIR and os.path.isfile(safe_path):
+            if os.path.commonpath([safe_path, UPLOADS_DIR]) == UPLOADS_DIR and (os.path.isfile(safe_path) or os.path.isdir(safe_path)):
                 try:
-                    os.remove(safe_path)
+                    if os.path.isdir(safe_path):
+                        shutil.rmtree(safe_path)
+                    else:
+                        os.remove(safe_path)
                     self.send_json({"success": True, "message": f"Deleted {filename}"})
                 except Exception as e:
                     self.send_json({"success": False, "error": str(e)}, status=500)
             else:
-                self.send_error(404, "File not found")
+                self.send_error(404, "File or folder not found")
         else:
             self.send_error(404, "Endpoint not found")
 
