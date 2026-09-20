@@ -95,6 +95,10 @@ class FileDropHandler(BaseHTTPRequestHandler):
         elif path == "/api/files":
             files = []
             for fname in os.listdir(UPLOADS_DIR):
+                # Ignore hidden files (.gitkeep, .DS_Store), temp files, and system files
+                if fname.startswith('.') or fname.startswith('~$') or fname.lower() in ('thumbs.db', 'desktop.ini') or fname.endswith('.tmp'):
+                    continue
+
                 fpath = os.path.join(UPLOADS_DIR, fname)
                 if os.path.isfile(fpath):
                     stat = os.stat(fpath)
@@ -162,8 +166,12 @@ class FileDropHandler(BaseHTTPRequestHandler):
             if not filename:
                 filename = f"upload_{int(datetime.now().timestamp())}.bin"
 
-            # Clean filename to avoid path traversal
+            # Clean filename to avoid path traversal and hide/system files
             filename = os.path.basename(filename).replace("/", "_").replace("\\", "_")
+            if filename.startswith('.'):
+                filename = filename.lstrip('.')
+            if not filename:
+                filename = f"upload_{int(datetime.now().timestamp())}.bin"
             target_path = os.path.join(UPLOADS_DIR, filename)
 
             # Avoid accidental overwrites by appending suffix if already exists
@@ -214,6 +222,9 @@ class FileDropHandler(BaseHTTPRequestHandler):
 
         if path.startswith("/api/files/"):
             filename = os.path.basename(urllib.parse.unquote(path[len("/api/files/"):]))
+            if filename.startswith('.'):
+                self.send_error(403, "Cannot delete system files")
+                return
             safe_path = os.path.abspath(os.path.join(UPLOADS_DIR, filename))
             if os.path.commonpath([safe_path, UPLOADS_DIR]) == UPLOADS_DIR and os.path.isfile(safe_path):
                 try:
