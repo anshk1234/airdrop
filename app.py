@@ -117,19 +117,30 @@ class FileDropHandler(BaseHTTPRequestHandler):
                 elif os.path.isdir(item_path):
                     total_size = 0
                     file_count = 0
+                    inner_files = []
                     for root, dirs, fnames in os.walk(item_path):
                         for f in fnames:
                             if not f.startswith('.'):
                                 fp = os.path.join(root, f)
                                 if os.path.isfile(fp):
-                                    total_size += os.path.getsize(fp)
+                                    fsize = os.path.getsize(fp)
+                                    total_size += fsize
                                     file_count += 1
+                                    rel = os.path.relpath(fp, item_path).replace("\\", "/")
+                                    inner_files.append({
+                                        "name": f,
+                                        "rel_path": rel,
+                                        "full_path": f"{item_name}/{rel}",
+                                        "size": fsize,
+                                        "formatted_size": format_size(fsize)
+                                    })
                     stat = os.stat(item_path)
                     files.append({
                         "name": item_name,
                         "type": "folder",
                         "size": total_size,
                         "file_count": file_count,
+                        "inner_files": inner_files,
                         "formatted_size": format_size(total_size),
                         "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
                         "mime": "application/zip"
@@ -137,15 +148,17 @@ class FileDropHandler(BaseHTTPRequestHandler):
             files.sort(key=lambda x: x["modified"], reverse=True)
             self.send_json({"files": files})
         elif path.startswith("/download/"):
-            filename = os.path.basename(urllib.parse.unquote(path[len("/download/"):]))
-            safe_path = os.path.abspath(os.path.join(UPLOADS_DIR, filename))
+            rel_path = urllib.parse.unquote(path[len("/download/"):])
+            parts = [p for p in rel_path.replace("\\", "/").split("/") if p and p != "." and p != ".."]
+            safe_path = os.path.abspath(os.path.join(UPLOADS_DIR, *parts))
             if os.path.commonpath([safe_path, UPLOADS_DIR]) == UPLOADS_DIR and os.path.isfile(safe_path):
                 mime, _ = mimetypes.guess_type(safe_path)
                 file_size = os.path.getsize(safe_path)
+                download_name = os.path.basename(safe_path)
                 self.send_response(200)
                 self.send_header("Content-Type", mime or "application/octet-stream")
                 self.send_header("Content-Length", str(file_size))
-                self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+                self.send_header("Content-Disposition", f'attachment; filename="{download_name}"')
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 with open(safe_path, "rb") as f:
@@ -187,15 +200,17 @@ class FileDropHandler(BaseHTTPRequestHandler):
             else:
                 self.send_error(404, "Folder Not Found")
         elif path.startswith("/view/"):
-            filename = os.path.basename(urllib.parse.unquote(path[len("/view/"):]))
-            safe_path = os.path.abspath(os.path.join(UPLOADS_DIR, filename))
+            rel_path = urllib.parse.unquote(path[len("/view/"):])
+            parts = [p for p in rel_path.replace("\\", "/").split("/") if p and p != "." and p != ".."]
+            safe_path = os.path.abspath(os.path.join(UPLOADS_DIR, *parts))
             if os.path.commonpath([safe_path, UPLOADS_DIR]) == UPLOADS_DIR and os.path.isfile(safe_path):
                 mime, _ = mimetypes.guess_type(safe_path)
                 file_size = os.path.getsize(safe_path)
+                view_name = os.path.basename(safe_path)
                 self.send_response(200)
                 self.send_header("Content-Type", mime or "application/octet-stream")
                 self.send_header("Content-Length", str(file_size))
-                self.send_header("Content-Disposition", f'inline; filename="{filename}"')
+                self.send_header("Content-Disposition", f'inline; filename="{view_name}"')
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 with open(safe_path, "rb") as f:

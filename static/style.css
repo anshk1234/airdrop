@@ -504,6 +504,51 @@ body {
   vertical-align: middle;
 }
 
+.folder-details {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  margin-top: -8px;
+  margin-bottom: 8px;
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inner-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.inner-file-row:last-child {
+  border-bottom: none;
+}
+
+.inner-file-name {
+  font-family: monospace;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+
+.inner-file-size {
+  color: var(--text-subtle);
+  font-size: 0.75rem;
+}
+
+.inner-file-actions {
+  display: flex;
+  gap: 6px;
+}
+
 .file-card:hover {
   background: var(--bg-card-hover);
   border-color: var(--border-active);

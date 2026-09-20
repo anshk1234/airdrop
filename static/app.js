@@ -233,6 +233,22 @@ function renderFiles(files) {
 
   filesList.innerHTML = files.map(file => {
     if (file.type === 'folder') {
+      const folderId = 'folder-' + Math.random().toString(36).substr(2, 9);
+      const innerListHtml = (file.inner_files || []).map(inner => `
+        <div class="inner-file-row">
+          <span class="inner-file-name" title="${escapeHtml(inner.rel_path)}">📄 ${escapeHtml(inner.rel_path)}</span>
+          <span class="inner-file-size">${inner.formatted_size}</span>
+          <div class="inner-file-actions">
+            <a href="/view/${encodeURIComponent(inner.full_path)}" target="_blank" class="btn-action" title="Preview / Open inline">
+              👁️
+            </a>
+            <a href="/download/${encodeURIComponent(inner.full_path)}" download class="btn-action download" title="Download file">
+              ⬇️
+            </a>
+          </div>
+        </div>
+      `).join('');
+
       return `
         <div class="file-card folder-card">
           <div class="file-info-group">
@@ -248,6 +264,9 @@ function renderFiles(files) {
             </div>
           </div>
           <div class="file-actions">
+            <button onclick="toggleFolderDetails('${folderId}')" class="btn-action" title="View files inside folder">
+              👁️ View (${file.file_count})
+            </button>
             <a href="/download-zip/${encodeURIComponent(file.name)}" class="btn-action download" title="Download entire folder as ZIP">
               📦 Download ZIP
             </a>
@@ -255,6 +274,9 @@ function renderFiles(files) {
               🗑️
             </button>
           </div>
+        </div>
+        <div id="${folderId}" class="folder-details hidden">
+          ${innerListHtml || '<div class="inner-file-empty" style="color: var(--text-subtle); font-size: 0.8rem;">Folder is empty</div>'}
         </div>
       `;
     }
@@ -513,3 +535,12 @@ function applyTheme(theme) {
   }
   localStorage.setItem('airdrop_theme', theme);
 }
+
+// Toggle folder accordion
+window.toggleFolderDetails = function(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.toggle('hidden');
+  }
+};
+
