@@ -577,7 +577,7 @@ function escapeHtml(str) {
 
 // Theme
 function initTheme() {
-  const saved = localStorage.getItem('airdrop_theme') || 'light';
+  const saved = localStorage.getItem('airdrop_theme_mode') || 'light';
   applyTheme(saved);
 }
 
@@ -596,7 +596,7 @@ function applyTheme(theme) {
     document.body.classList.add('light-theme');
     themeIcon.textContent = '☀️';
   }
-  localStorage.setItem('airdrop_theme', theme);
+  localStorage.setItem('airdrop_theme_mode', theme);
 }
 
 // Toggle folder accordion
