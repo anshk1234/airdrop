@@ -577,7 +577,7 @@ function escapeHtml(str) {
 
 // Theme
 function initTheme() {
-  const saved = localStorage.getItem('airdrop_theme') || 'dark';
+  const saved = localStorage.getItem('airdrop_theme') || 'light';
   applyTheme(saved);
 }
 
