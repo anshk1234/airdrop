@@ -10,16 +10,42 @@ Transfer photos, 4K videos, documents, and archives directly between your PC, Ma
 [![Cross Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20iOS%20%7C%20Android-blue.svg?style=flat)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat)](LICENSE)
 
-```
-        ┌─────────────────────────────────────────────────────┐
-        │                 Your Wi-Fi Router                   │
-        └──────────────┬───────────────────────┬──────────────┘
-                       │                       │
-         ┌─────────────▼─────────────┐   ┌─────▼─────────────────────┐
-         │     Host PC / Laptop      │   │   Phone / Tablet / Mac    │
-         │   (Runs Python Server)    │   │  (Opens Browser via QR)   │
-         │  http://localhost:5050    │   │ http://192.168.x.x:5050   │
-         └───────────────────────────┘   └───────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph ROUTER["📶 Local Network Layer (Wi-Fi Router)"]
+        WIFI["Local Wi-Fi Network / LAN · Direct P2P Speeds · 0% Internet Data Used"]
+    end
+
+    subgraph HOST["💻 Host Machine (PC / Laptop / Mac)"]
+        SERVER["Python Multi-Threaded Server (app.py)"]
+        STORAGE["uploads/ Storage (Permanent Disk Persistence)"]
+        ZIP_ENGINE["In-Memory Auto-ZIP Engine (JSZip & zipfile)"]
+        SERVER -->|"Streams & saves files"| STORAGE
+        ZIP_ENGINE -->|"Bundles folders into .zip"| SERVER
+    end
+
+    subgraph CLIENTS["📱 Connected Devices (Phones / Tablets / PCs)"]
+        PHONE["Mobile Browser (iOS / Android)"]
+        PC2["Secondary PC / Mac"]
+        QR["Instant QR Code Pairing"]
+    end
+
+    subgraph FEATURES["⚡ Core Features & Capabilities"]
+        DROP["Drag & Drop Files or Whole Folders"]
+        AUTOZIP["Auto-Zips Folders Client-Side"]
+        PREVIEW["Live In-Browser Previews (Images/Videos/PDFs)"]
+        SYNC["5-Second Live Device Sync"]
+    end
+
+    QR -->|"Scans network URL"| PHONE
+    PHONE <-->|"Direct LAN Transfer"| WIFI
+    PC2 <-->|"Direct LAN Transfer"| WIFI
+    WIFI <-->|"Zero-Dependency HTTP Stream"| SERVER
+    DROP --> AUTOZIP
+    AUTOZIP --> ZIP_ENGINE
+    SERVER --> SYNC
+    SYNC --> CLIENTS
+    SERVER --> PREVIEW
 ```
 
 </div>
