@@ -368,47 +368,110 @@ function uploadFiles(fileList) {
   uploadItemList(items);
 }
 
-function uploadItemList(items) {
+async function uploadItemList(items) {
   uploadQueue.classList.remove('hidden');
 
+  // Separate loose files from folders
+  const looseFiles = [];
+  const foldersMap = {};
+
   items.forEach(item => {
-    const file = item.file;
-    const relPath = item.relPath;
-    const queueId = 'queue-' + Math.random().toString(36).substr(2, 9);
-    addQueueItem(queueId, relPath);
-
-    const xhr = new XMLHttpRequest();
-    const url = `/api/upload?filename=${encodeURIComponent(file.name)}&relpath=${encodeURIComponent(relPath)}`;
-
-    xhr.open('POST', url, true);
-    xhr.setRequestHeader('X-File-Name', encodeURIComponent(file.name));
-    xhr.setRequestHeader('X-Relative-Path', encodeURIComponent(relPath));
-
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        const percent = Math.round((e.loaded / e.total) * 100);
-        updateQueueProgress(queueId, percent);
+    const parts = item.relPath.replace(/\\/g, '/').split('/');
+    if (parts.length > 1) {
+      const folderName = parts[0];
+      const innerPath = parts.slice(1).join('/');
+      if (!foldersMap[folderName]) {
+        foldersMap[folderName] = [];
       }
-    };
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        removeQueueItem(queueId);
-        showToast(`Uploaded: ${relPath}`);
-        loadFiles();
-      } else {
-        markQueueError(queueId, 'Upload failed');
-        showToast(`Failed to upload ${relPath}`);
-      }
-    };
-
-    xhr.onerror = () => {
-      markQueueError(queueId, 'Network error');
-      showToast(`Error uploading ${relPath}`);
-    };
-
-    xhr.send(file);
+      foldersMap[folderName].push({ file: item.file, innerPath });
+    } else {
+      looseFiles.push(item.file);
+    }
   });
+
+  // 1. Process and auto-zip any folders
+  for (const [folderName, folderFiles] of Object.entries(foldersMap)) {
+    if (typeof JSZip !== 'undefined') {
+      const queueId = 'queue-' + Math.random().toString(36).substr(2, 9);
+      addQueueItem(queueId, `📦 Zipping '${folderName}' (${folderFiles.length} files)...`);
+
+      try {
+        const zip = new JSZip();
+        for (const item of folderFiles) {
+          zip.file(item.innerPath, item.file);
+        }
+
+        const zipBlob = await zip.generateAsync({
+          type: 'blob',
+          compression: 'DEFLATE',
+          compressionOptions: { level: 6 }
+        }, (metadata) => {
+          updateQueueProgress(queueId, Math.round(metadata.percent));
+        });
+
+        const zipFileName = `${folderName}.zip`;
+        const zipFile = new File([zipBlob], zipFileName, { type: 'application/zip' });
+
+        // Update queue item label to uploading
+        const itemEl = document.getElementById(queueId);
+        if (itemEl) {
+          itemEl.querySelector('.queue-filename').textContent = `Uploading ${zipFileName}...`;
+        }
+
+        uploadSingleFile(zipFile, zipFileName, queueId);
+      } catch (err) {
+        console.error('Failed to auto-zip folder:', err);
+        showToast(`Failed to zip ${folderName}, uploading individually...`);
+        folderFiles.forEach(f => uploadSingleFile(f.file, f.file.name));
+      }
+    } else {
+      // Fallback if JSZip is unavailable
+      folderFiles.forEach(f => uploadSingleFile(f.file, f.file.name));
+    }
+  }
+
+  // 2. Upload loose files individually
+  looseFiles.forEach(file => {
+    uploadSingleFile(file, file.name);
+  });
+}
+
+function uploadSingleFile(file, fileName, existingQueueId = null) {
+  const queueId = existingQueueId || ('queue-' + Math.random().toString(36).substr(2, 9));
+  if (!existingQueueId) {
+    addQueueItem(queueId, fileName);
+  }
+
+  const xhr = new XMLHttpRequest();
+  const url = `/api/upload?filename=${encodeURIComponent(fileName)}`;
+
+  xhr.open('POST', url, true);
+  xhr.setRequestHeader('X-File-Name', encodeURIComponent(fileName));
+
+  xhr.upload.onprogress = (e) => {
+    if (e.lengthComputable) {
+      const percent = Math.round((e.loaded / e.total) * 100);
+      updateQueueProgress(queueId, percent);
+    }
+  };
+
+  xhr.onload = () => {
+    if (xhr.status >= 200 && xhr.status < 300) {
+      removeQueueItem(queueId);
+      showToast(`Uploaded: ${fileName}`);
+      loadFiles();
+    } else {
+      markQueueError(queueId, 'Upload failed');
+      showToast(`Failed to upload ${fileName}`);
+    }
+  };
+
+  xhr.onerror = () => {
+    markQueueError(queueId, 'Network error');
+    showToast(`Error uploading ${fileName}`);
+  };
+
+  xhr.send(file);
 }
 
 function addQueueItem(id, filename) {
