@@ -16,9 +16,28 @@ PORT = 5050
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
+NOTES_FILE = os.path.join(BASE_DIR, "shared_notes.json")
 
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 os.makedirs(STATIC_DIR, exist_ok=True)
+
+def load_notes():
+    """Loads shared notes from JSON file."""
+    if not os.path.exists(NOTES_FILE):
+        return []
+    try:
+        with open(NOTES_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def save_notes(notes):
+    """Saves shared notes to JSON file."""
+    try:
+        with open(NOTES_FILE, "w", encoding="utf-8") as f:
+            json.dump(notes, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"[!] Error saving shared notes: {e}")
 
 def get_local_ip():
     """Finds the local network IP address of the machine."""
@@ -95,6 +114,8 @@ class FileDropHandler(BaseHTTPRequestHandler):
                 "local_url": f"http://localhost:{PORT}",
                 "files_count": files_count
             })
+        elif path == "/api/notes":
+            self.send_json({"notes": load_notes()})
         elif path == "/api/files":
             files = []
             for item_name in os.listdir(UPLOADS_DIR):
@@ -311,6 +332,38 @@ class FileDropHandler(BaseHTTPRequestHandler):
                     except Exception:
                         pass
                 self.send_json({"success": False, "error": str(e)}, status=500)
+        elif path == "/api/notes":
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+            except (TypeError, ValueError):
+                content_length = 0
+
+            body = self.rfile.read(content_length).decode('utf-8')
+            try:
+                data = json.loads(body)
+                text = data.get("text", "").strip()
+            except Exception:
+                text = body.strip()
+
+            if not text:
+                self.send_json({"success": False, "error": "Text cannot be empty"}, status=400)
+                return
+
+            notes = load_notes()
+            note_id = str(int(datetime.now().timestamp() * 1000))
+            is_url = text.startswith("http://") or text.startswith("https://")
+
+            new_note = {
+                "id": note_id,
+                "text": text,
+                "is_url": is_url,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            notes.insert(0, new_note)
+            notes = notes[:100]  # Keep most recent 100 notes
+            save_notes(notes)
+
+            self.send_json({"success": True, "note": new_note})
         else:
             self.send_error(404, "Endpoint not found")
 
@@ -335,6 +388,15 @@ class FileDropHandler(BaseHTTPRequestHandler):
                     self.send_json({"success": False, "error": str(e)}, status=500)
             else:
                 self.send_error(404, "File or folder not found")
+        elif path.startswith("/api/notes/"):
+            note_id = urllib.parse.unquote(path[len("/api/notes/"):])
+            notes = load_notes()
+            notes = [n for n in notes if n.get("id") != note_id]
+            save_notes(notes)
+            self.send_json({"success": True, "message": "Note deleted"})
+        elif path == "/api/notes":
+            save_notes([])
+            self.send_json({"success": True, "message": "All notes cleared"})
         else:
             self.send_error(404, "Endpoint not found")
 

@@ -71,67 +71,135 @@
       </div>
     </div>
 
-    <!-- Drop Zone -->
+    <!-- Tab Navigation -->
+    <div class="tabs-nav">
+      <button id="tab-files-btn" class="tab-btn active">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <span>Files & Folders</span>
+        <span id="tab-files-counter" class="tab-counter">0</span>
+      </button>
+      <button id="tab-notes-btn" class="tab-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+        <span>Shared Clipboard</span>
+        <span id="tab-notes-counter" class="tab-counter">0</span>
+      </button>
+    </div>
+
+    <!-- Main Content -->
     <main class="main-content">
-      <section class="drop-section">
-        <div id="drop-zone" class="drop-zone">
-          <input type="file" id="file-input" multiple class="hidden-input" />
-          <input type="file" id="folder-input" webkitdirectory directory multiple class="hidden-input" />
-          <div class="drop-icon-wrapper">
-            <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
-          </div>
-          <h2 class="drop-title">Drop files or folders to transfer</h2>
-          <p class="drop-subtitle">or <span class="browse-link" id="browse-files-btn">browse files</span> / <span class="browse-link" id="browse-folder-btn">select folder</span></p>
-          <div class="supported-tags">
-            <span>Folders auto-pack to ZIP</span> • <span>No file size limits</span> • <span>Direct LAN speed</span>
-          </div>
-        </div>
-
-        <!-- Upload Progress Queue -->
-        <div id="upload-queue" class="upload-queue hidden">
-          <h3 class="queue-heading">Active Transfers</h3>
-          <div id="queue-list" class="queue-list"></div>
-        </div>
-      </section>
-
-      <!-- Shared Files Section -->
-      <section class="files-section">
-        <div class="section-header">
-          <div class="heading-group">
-            <h2>Shared Files <span id="files-counter" class="counter">0</span></h2>
-            <p class="section-sub">Transferred files saved locally to your device</p>
-          </div>
-          <div class="filter-controls">
-            <div class="search-box">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      <!-- TAB 1: FILES & FOLDERS -->
+      <div id="tab-files-content" class="tab-pane active">
+        <section class="drop-section">
+          <div id="drop-zone" class="drop-zone">
+            <input type="file" id="file-input" multiple class="hidden-input" />
+            <input type="file" id="folder-input" webkitdirectory directory multiple class="hidden-input" />
+            <div class="drop-icon-wrapper">
+              <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
               </svg>
-              <input type="text" id="search-input" placeholder="Search files..." />
             </div>
-            <button id="refresh-btn" class="btn btn-secondary btn-icon-only" title="Refresh file list">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="23 4 23 10 17 10"></polyline>
-                <polyline points="1 20 1 14 7 14"></polyline>
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-              </svg>
+            <h2 class="drop-title">Drop files or folders to transfer</h2>
+            <p class="drop-subtitle">or <span class="browse-link" id="browse-files-btn">browse files</span> / <span class="browse-link" id="browse-folder-btn">select folder</span></p>
+            <div class="supported-tags">
+              <span>Folders auto-pack to ZIP</span> • <span>No file size limits</span> • <span>Direct LAN speed</span>
+            </div>
+          </div>
+
+          <!-- Upload Progress Queue -->
+          <div id="upload-queue" class="upload-queue hidden">
+            <h3 class="queue-heading">Active Transfers</h3>
+            <div id="queue-list" class="queue-list"></div>
+          </div>
+        </section>
+
+        <!-- Shared Files Section -->
+        <section class="files-section">
+          <div class="section-header">
+            <div class="heading-group">
+              <h2>Shared Files <span id="files-counter" class="counter">0</span></h2>
+              <p class="section-sub">Transferred files saved locally to your device</p>
+            </div>
+            <div class="filter-controls">
+              <div class="search-box">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="search-input" placeholder="Search files..." />
+              </div>
+              <button id="refresh-btn" class="btn btn-secondary btn-icon-only" title="Refresh file list">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <polyline points="1 20 1 14 7 14"></polyline>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Files List / Empty State -->
+          <div id="files-list" class="files-grid">
+            <div class="empty-state">
+              <div class="empty-icon">📂</div>
+              <h3>No files transferred yet</h3>
+              <p>Drop any files or folders into the area above to share with nearby devices.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- TAB 2: SHARED TEXT / CLIPBOARD -->
+      <div id="tab-notes-content" class="tab-pane hidden">
+        <section class="clipboard-section">
+          <!-- Text Composer -->
+          <div class="composer-card">
+            <div class="composer-header">
+              <span class="composer-title">Quick Share</span>
+              <span class="composer-hint">Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to send</span>
+            </div>
+            <textarea id="note-input" placeholder="Type or paste a link, Wi-Fi password, code snippet, or note..." rows="3"></textarea>
+            <div class="composer-footer">
+              <button id="clear-input-btn" class="btn btn-secondary btn-sm" title="Clear text">Clear</button>
+              <button id="send-note-btn" class="btn btn-primary" title="Share text to all devices">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+                <span>Share Text</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Notes List Section -->
+          <div class="notes-header">
+            <div class="heading-group">
+              <h2>Shared Notes & Links <span id="notes-counter" class="counter">0</span></h2>
+              <p class="section-sub">Synced in real-time across all devices on this Wi-Fi</p>
+            </div>
+            <button id="clear-all-notes-btn" class="btn btn-secondary btn-sm" title="Delete all shared text" style="display: none;">
+              Clear All
             </button>
           </div>
-        </div>
 
-        <!-- Files List / Empty State -->
-        <div id="files-list" class="files-grid">
-          <div class="empty-state">
-            <div class="empty-icon">📂</div>
-            <h3>No files transferred yet</h3>
-            <p>Drop any files or folders into the area above to share with nearby devices.</p>
+          <div id="notes-list" class="notes-grid">
+            <div class="empty-state">
+              <div class="empty-icon">📝</div>
+              <h3>No shared text yet</h3>
+              <p>Type or paste any link, note, or snippet above to sync it instantly with nearby devices.</p>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </main>
 
     <!-- Footer -->

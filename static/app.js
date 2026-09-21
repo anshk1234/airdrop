@@ -26,15 +26,36 @@ const qrcodeContainer = document.getElementById('qrcode-container');
 const modalUrl = document.getElementById('modal-url');
 const toastContainer = document.getElementById('toast-container');
 
+// Tab & Clipboard DOM Elements
+const tabFilesBtn = document.getElementById('tab-files-btn');
+const tabNotesBtn = document.getElementById('tab-notes-btn');
+const tabFilesContent = document.getElementById('tab-files-content');
+const tabNotesContent = document.getElementById('tab-notes-content');
+const tabFilesCounter = document.getElementById('tab-files-counter');
+const tabNotesCounter = document.getElementById('tab-notes-counter');
+const noteInput = document.getElementById('note-input');
+const sendNoteBtn = document.getElementById('send-note-btn');
+const clearInputBtn = document.getElementById('clear-input-btn');
+const notesList = document.getElementById('notes-list');
+const notesCounter = document.getElementById('notes-counter');
+const clearAllNotesBtn = document.getElementById('clear-all-notes-btn');
+
+let notesData = [];
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
+  initTabs();
   fetchServerInfo();
   loadFiles();
+  loadNotes();
   setupEventListeners();
   
-  // Auto-refresh file list every 5 seconds to sync between devices
-  setInterval(loadFiles, 5000);
+  // Auto-refresh file and note lists every 5 seconds to sync between devices
+  setInterval(() => {
+    loadFiles();
+    loadNotes();
+  }, 5000);
 });
 
 // Setup Listeners
@@ -143,6 +164,26 @@ function setupEventListeners() {
   searchInput.addEventListener('input', () => {
     renderFiles(filterFiles(searchInput.value));
   });
+
+  // Tab switching
+  if (tabFilesBtn) tabFilesBtn.addEventListener('click', () => switchTab('files'));
+  if (tabNotesBtn) tabNotesBtn.addEventListener('click', () => switchTab('notes'));
+
+  // Clipboard actions
+  if (sendNoteBtn) sendNoteBtn.addEventListener('click', sendNote);
+  if (clearInputBtn) clearInputBtn.addEventListener('click', () => {
+    noteInput.value = '';
+    noteInput.focus();
+  });
+  if (clearAllNotesBtn) clearAllNotesBtn.addEventListener('click', clearAllNotes);
+  if (noteInput) {
+    noteInput.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        sendNote();
+      }
+    });
+  }
 }
 
 // Fetch Server Network Information
@@ -204,7 +245,8 @@ async function loadFiles() {
     if (!res.ok) return;
     const data = await res.json();
     filesData = data.files || [];
-    filesCounter.textContent = filesData.length;
+    if (filesCounter) filesCounter.textContent = filesData.length;
+    if (tabFilesCounter) tabFilesCounter.textContent = filesData.length;
     renderFiles(filterFiles(searchInput.value));
   } catch (err) {
     console.error('Failed to load files:', err);
@@ -606,4 +648,161 @@ window.toggleFolderDetails = function(id) {
     el.classList.toggle('hidden');
   }
 };
+
+// Tabs Management
+function initTabs() {
+  const activeTab = localStorage.getItem('airdrop_active_tab') || 'files';
+  switchTab(activeTab);
+}
+
+function switchTab(tabName) {
+  if (tabName === 'files') {
+    if (tabFilesBtn) tabFilesBtn.classList.add('active');
+    if (tabNotesBtn) tabNotesBtn.classList.remove('active');
+    if (tabFilesContent) tabFilesContent.classList.remove('hidden');
+    if (tabNotesContent) tabNotesContent.classList.add('hidden');
+  } else {
+    if (tabNotesBtn) tabNotesBtn.classList.add('active');
+    if (tabFilesBtn) tabFilesBtn.classList.remove('active');
+    if (tabNotesContent) tabNotesContent.classList.remove('hidden');
+    if (tabFilesContent) tabFilesContent.classList.add('hidden');
+  }
+  localStorage.setItem('airdrop_active_tab', tabName);
+}
+
+// Shared Notes / Clipboard Management
+async function loadNotes() {
+  try {
+    const res = await fetch('/api/notes');
+    if (!res.ok) return;
+    const data = await res.json();
+    notesData = data.notes || [];
+    if (notesCounter) notesCounter.textContent = notesData.length;
+    if (tabNotesCounter) tabNotesCounter.textContent = notesData.length;
+    renderNotes(notesData);
+  } catch (err) {
+    console.error('Failed to load notes:', err);
+  }
+}
+
+function renderNotes(notes) {
+  if (!notesList) return;
+
+  if (notes.length === 0) {
+    if (clearAllNotesBtn) clearAllNotesBtn.style.display = 'none';
+    notesList.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📝</div>
+        <h3>No shared text yet</h3>
+        <p>Type or paste any link, note, or snippet above to sync it instantly with nearby devices.</p>
+      </div>
+    `;
+    return;
+  }
+
+  if (clearAllNotesBtn) clearAllNotesBtn.style.display = 'inline-flex';
+
+  notesList.innerHTML = notes.map(note => {
+    let contentHtml = '';
+    if (note.is_url) {
+      contentHtml = `
+        <a href="${escapeHtml(note.text)}" target="_blank" rel="noopener noreferrer" class="note-link" title="Open link in new tab">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+          </svg>
+          <span>${escapeHtml(note.text)}</span>
+        </a>
+      `;
+    } else {
+      contentHtml = `<div class="note-content">${escapeHtml(note.text)}</div>`;
+    }
+
+    const safeTextJson = JSON.stringify(note.text).replace(/"/g, '&quot;');
+
+    return `
+      <div class="note-card">
+        ${contentHtml}
+        <div class="note-footer">
+          <span class="note-time">${escapeHtml(note.timestamp)}</span>
+          <div class="note-actions">
+            <button onclick="copyNoteText(${safeTextJson})" class="btn-action" title="Copy text to clipboard">
+              📋 Copy
+            </button>
+            <button onclick="deleteNote('${note.id}')" class="btn-action delete" title="Delete note">
+              🗑️
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function sendNote() {
+  if (!noteInput) return;
+  const text = noteInput.value.trim();
+  if (!text) {
+    showToast('Please enter text or a link to share');
+    return;
+  }
+
+  if (sendNoteBtn) sendNoteBtn.disabled = true;
+  try {
+    const res = await fetch('/api/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    if (res.ok) {
+      noteInput.value = '';
+      showToast('Text shared successfully!');
+      loadNotes();
+    } else {
+      showToast('Failed to share text');
+    }
+  } catch (err) {
+    showToast('Error sharing text');
+  } finally {
+    if (sendNoteBtn) sendNoteBtn.disabled = false;
+  }
+}
+
+window.copyNoteText = function(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Copied to clipboard!');
+  }).catch(() => {
+    showToast('Failed to copy');
+  });
+};
+
+window.deleteNote = async function(id) {
+  try {
+    const res = await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      showToast('Note deleted');
+      loadNotes();
+    } else {
+      showToast('Failed to delete note');
+    }
+  } catch (err) {
+    showToast('Error deleting note');
+  }
+};
+
+window.clearAllNotes = async function() {
+  if (!confirm('Are you sure you want to delete all shared notes?')) return;
+  try {
+    const res = await fetch('/api/notes', { method: 'DELETE' });
+    if (res.ok) {
+      showToast('All notes cleared');
+      loadNotes();
+    } else {
+      showToast('Failed to clear notes');
+    }
+  } catch (err) {
+    showToast('Error clearing notes');
+  }
+};
+
 

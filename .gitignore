@@ -15,3 +15,6 @@ Thumbs.db
 .idea/
 *.swp
 *.bak
+
+# Shared text & notes
+shared_notes.json

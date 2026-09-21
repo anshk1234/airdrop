@@ -68,6 +68,7 @@ Sending a file from your PC to your phone (or vice versa) shouldn't require:
 
 - **⚡ Zero External Dependencies**: Built with 100% pure Python standard library (`http.server`, `socket`). No `pip install`, no virtual environments, no bloat.
 - **📱 Instant QR Code Pairing**: Click "Scan to Connect" on your PC, point your phone's camera at the QR code, and you're instantly ready to transfer.
+- **📋 Shared Clipboard & Links**: Instantly sync text, Wi-Fi passwords, code snippets, or URLs between your phone and PC with one-click copy.
 - **📁 Folder Upload & Download as ZIP**: Drag and drop entire folders (like Blender projects, code repos, or photo albums). Download any folder as a `.zip` archive with one click.
 - **🚀 Multi-Threaded Transfers**: Concurrent uploads and downloads without freezing or blocking other connected devices.
 - **📂 Drag & Drop Simplicity**: Drop single files, batches, or whole directories directly into the browser drop zone.
