@@ -18,3 +18,5 @@ Thumbs.db
 
 # Shared text & notes
 shared_notes.json
+data/*
+!data/.gitkeep

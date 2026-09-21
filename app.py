@@ -16,10 +16,23 @@ PORT = 5050
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
-NOTES_FILE = os.path.join(BASE_DIR, "shared_notes.json")
+DATA_DIR = os.path.join(BASE_DIR, "data")
+NOTES_FILE = os.path.join(DATA_DIR, "shared_notes.json")
 
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 os.makedirs(STATIC_DIR, exist_ok=True)
+os.makedirs(DATA_DIR, exist_ok=True)
+
+# Migrate legacy shared_notes.json from root if present
+LEGACY_NOTES_FILE = os.path.join(BASE_DIR, "shared_notes.json")
+if os.path.exists(LEGACY_NOTES_FILE):
+    try:
+        if not os.path.exists(NOTES_FILE):
+            shutil.move(LEGACY_NOTES_FILE, NOTES_FILE)
+        else:
+            os.remove(LEGACY_NOTES_FILE)
+    except Exception:
+        pass
 
 def load_notes():
     """Loads shared notes from JSON file."""
